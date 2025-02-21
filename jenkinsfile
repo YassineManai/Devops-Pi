@@ -1,77 +1,79 @@
+pipeline {
+    agent any
 
-pipeline{
-  agent any
-
-  environment {
+    environment {
         registryCredentials = "nexus"
         registry = "192.168.100.47:8083"
         imageName = "nodemongoapp"
         imageTag = "6.0"
     }
-   
-  stages {
 
- stage('Checkout Code') {
+    stages {
+        
+        stage('Checkout Code') {
             steps {
                 script {
                     git branch: 'main', url: 'https://github.com/Aymenjallouli/Devops.git'
-                    sh 'ls -l'  // Vérifier si les fichiers sont bien présents
+                    sh 'ls -l'  // Vérifier que les fichiers sont présents
                 }
             }
         }
-  stage('Install dependencies') {
-      steps{
-        
-        script {
-         sh('npm install')
-        }
-      }
-    }
 
-stage('Unit Test') {
-      steps{
-        
-        script {
-         sh('npm test')
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    sh 'npm install'
+                }
+            }
         }
-      }
-    }
 
-    stage('SonarQube Analysis') {
-      steps{
-      script {  
+        stage('Unit Test') {
+            steps {
+                script {
+                    sh 'npm test'
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                script {  
                     def scannerHome = tool 'scanner'
                     withSonarQubeEnv {
-                    sh "${scannerHome}/bin/sonar-scanner"
-                        }
+                        sh "${scannerHome}/bin/sonar-scanner"
+                    }
                 } 
-              }  
             }
-
-stage('Build application') {
-      steps{
-        
-        script {
-         sh('npm run build-dev')
         }
-      }
-    }
 
-
-
-        // Building Docker images
-  stage('Building images (node and mongo)') {
-    steps {
-        script {
-            sh 'ls -l'  // Vérifier que Dockerfile est bien présent
-            sh "docker build -t $registry/$imageName:$imageTag ."
+        stage('Build Application') {
+            steps {
+                script {
+                    sh 'npm run build-dev'
+                }
+            }
         }
-    }
-}
 
+        stage('Building Docker Image') {
+            steps {
+                script {
+                    sh 'set -e'  // Arrête l’exécution en cas d’erreur
+                    sh 'ls -l'   // Vérifier que Dockerfile est bien présent
 
+                    // Vérification de l'existence du Dockerfile avant de builder
+                    sh '''
+                    if [ ! -f Dockerfile ]; then
+                        echo "Dockerfile introuvable !"
+                        exit 1
+                    fi
+                    '''
 
-   stage('Deploy  to Nexus') {
+                    sh "docker build -t $registry/$imageName:$imageTag ."
+                }
+            }
+        }
+
+        stage('Deploy to Nexus') {
             steps {
                 script {
                     docker.withRegistry("http://$registry", registryCredentials) {
@@ -81,30 +83,37 @@ stage('Build application') {
             }
         }
 
-    stage('Run Application') {
+        stage('Run Application') {
             steps {
                 script {
                     docker.withRegistry("http://$registry", registryCredentials) {
                         sh "docker pull $registry/$imageName:$imageTag"
+                        
+                        // Vérification avant lancement
+                        sh '''
+                        if [ ! -f docker-compose.yml ]; then
+                            echo "Erreur: fichier docker-compose.yml introuvable !"
+                            exit 1
+                        fi
+                        '''
+
                         sh "docker-compose up -d"
                     }
                 }
             }
         }
 
-        stage("Run prometheus") {
+        stage("Run Prometheus") {
             steps {
                 script {
                     sh 'docker start prometheus || docker run -d --name prometheus prom/prometheus'
-                    
                 }
             }
         }
-    }
-    stage("Run grafana") {
+
+        stage("Run Grafana") {
             steps {
                 script {
-                   
                     sh 'docker start grafana || docker run -d --name grafana grafana/grafana'
                 }
             }
