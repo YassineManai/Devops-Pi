@@ -82,16 +82,25 @@ stage('Build application') {
             }
         }
 
-    stage('Run Application') {
-            steps {
-                script {
-                    docker.withRegistry("http://$registry", registryCredentials) {
-                        sh "docker pull $registry/$imageName:$imageTag"
-                        sh "docker-compose up -d"
-                    }
-                }
+   stage('Run Application') {
+    steps {
+        script {
+            docker.withRegistry("http://$registry", registryCredentials) {
+                sh "docker pull $registry/$imageName:$imageTag"
+
+                // Remplacement dynamique du tag dans docker-compose.yml
+                sh "sed -i 's|IMAGE_TAG|$imageTag|g' docker-compose.yml"
+
+                // Vérifier que le fichier docker-compose est bien modifié
+                sh "cat docker-compose.yml"
+
+                // Redémarrer l'application proprement
+                sh "docker-compose down || true"
+                sh "docker-compose up -d"
             }
         }
+    }
+}
 
         stage("Run prometheus") {
             steps {
