@@ -59,15 +59,15 @@ stage('Build application') {
 
 
 
- stage('Building images (node and mongo)') {
-      steps{
-        
+        // Building Docker images
+  stage('Building images (node and mongo)') {
+    steps {
         script {
-         sh('docker-compose build')
+            sh 'ls -l'  // Vérifier que Dockerfile est bien présent
+            sh "docker build -t $registry/$imageName:$imageTag ."
         }
-      }
     }
-
+}
 
 
 
@@ -81,7 +81,7 @@ stage('Build application') {
             }
         }
 
-    stage('Run application') {
+    stage('Run Application') {
             steps {
                 script {
                     docker.withRegistry("http://$registry", registryCredentials) {
@@ -92,23 +92,22 @@ stage('Build application') {
             }
         }
 
-        stage("Run Prometheus"){
-      steps{
- 
-        script{
-
-        sh('docker start prometheus')
-
+        stage("Run prometheus") {
+            steps {
+                script {
+                    sh 'docker start prometheus || docker run -d --name prometheus prom/prometheus'
+                    
+                }
+            }
         }
-      }
     }
-     stage("Run Grafana"){ 
-      steps{
-
-        script{
-        sh('docker start grafana')
+    stage("Run grafana") {
+            steps {
+                script {
+                   
+                    sh 'docker start grafana || docker run -d --name grafana grafana/grafana'
+                }
+            }
         }
-      }
     }
-  } 
 }
