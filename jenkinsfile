@@ -5,10 +5,20 @@ pipeline{
   environment {
         registryCredentials = "nexus"
         registry = "192.168.100.47:8083"
+        imageName = "nodemongoapp"
+        imageTag = "6.0"
     }
    
   stages {
 
+ stage('Checkout Code') {
+            steps {
+                script {
+                    git branch: 'main', url: 'https://github.com/Aymenjallouli/Devops.git'
+                    sh 'ls -l'  // Vérifier si les fichiers sont bien présents
+                }
+            }
+        }
   stage('Install dependencies') {
       steps{
         
@@ -50,61 +60,45 @@ stage('Build application') {
 
 
         // Building Docker images
-    stage('Building images (node and mongo)') {
-      steps{
-        
+  stage('Build Docker Image') {
+    steps {
         script {
-         sh('docker-compose build')
+            sh 'ls -l'  // Vérifier que Dockerfile est bien présent
+            sh "docker build -t $registry/$imageName:$imageTag ."
         }
-      }
     }
-
-
-        //  Uploading Docker images into Nexus Registry
-    stage('Deploy  to Nexus') {
-     steps{  
-         script {
-
-             docker.withRegistry("http://"+registry, registryCredentials ) {
-            sh('docker push $registry/nodemongoapp:6.0 ')
-          }
-        }
-      }
-    }
-
-     stage('Run application ') {
-     steps{  
-         script {
-           docker.withRegistry("http://"+registry, registryCredentials ) {
-
-            sh('docker pull $registry/nodemongoapp:6.0 ')
-
-            sh('docker-compose up -d ')
-          }
-        }
-      }
-    }
-
-     stage("Run Prometheus"){
-      steps{
- 
-        script{
-
-        sh('docker start prometheus')
-
-        }
-      }
-    }
-     stage("Run Grafana"){ 
-      steps{
-
-        script{
-        sh('docker start grafana')
-        }
-      }
-    }
-  } 
-
 }
 
 
+
+   stage('Push Docker Image to Nexus') {
+            steps {
+                script {
+                    docker.withRegistry("http://$registry", registryCredentials) {
+                        sh "docker push $registry/$imageName:$imageTag"
+                    }
+                }
+            }
+        }
+
+    stage('Deploy Application') {
+            steps {
+                script {
+                    docker.withRegistry("http://$registry", registryCredentials) {
+                        sh "docker pull $registry/$imageName:$imageTag"
+                        sh "docker-compose up -d"
+                    }
+                }
+            }
+        }
+
+        stage("Run Monitoring Services") {
+            steps {
+                script {
+                    sh 'docker start prometheus || docker run -d --name prometheus prom/prometheus'
+                    sh 'docker start grafana || docker run -d --name grafana grafana/grafana'
+                }
+            }
+        }
+    }
+}
