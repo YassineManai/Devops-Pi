@@ -54,24 +54,14 @@ pipeline {
             }
         }
 
-        stage('Building Docker Image') {
-            steps {
-                script {
-                    sh 'set -e'  // Arrête l’exécution en cas d’erreur
-                    sh 'ls -l'   // Vérifier que Dockerfile est bien présent
-
-                    // Vérification de l'existence du Dockerfile avant de builder
-                    sh '''
-                    if [ ! -f Dockerfile ]; then
-                        echo "Dockerfile introuvable !"
-                        exit 1
-                    fi
-                    '''
-
-                    sh "docker build -t $registry/$imageName:$imageTag ."
-                }
-            }
+        stage('Building images (node and mongo)') {
+      steps{
+        
+        script {
+         sh('docker-compose build')
         }
+      }
+    }
 
         stage('Deploy to Nexus') {
             steps {
@@ -89,15 +79,7 @@ pipeline {
                     docker.withRegistry("http://$registry", registryCredentials) {
                         sh "docker pull $registry/$imageName:$imageTag"
                         
-                        // Vérification avant lancement
-                        sh '''
-                        if [ ! -f docker-compose.yml ]; then
-                            echo "Erreur: fichier docker-compose.yml introuvable !"
-                            exit 1
-                        fi
-                        '''
-
-                        sh "docker-compose up -d"
+                        sh('docker-compose up -d ')
                     }
                 }
             }
